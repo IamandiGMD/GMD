@@ -1,13 +1,13 @@
-# === TIP POARTĂ ===
-GATE_TYPE = "sliding"      # "sliding" | "swing"
+# tip poartă
+GATE_TYPE = "swing_double"
 
-# === DIMENSIUNI POARTĂ (mm) ===
-GATE_WIDTH = 2000.0
-GATE_HEIGHT = 1800.0
+# dimensiuni generale (mm)
+GATE_WIDTH = 4000
+GATE_HEIGHT = 1800
 
-# === PROFIL CADRU ===
-PROFILE_SIZE = 60.0
-PROFILE_THICKNESS = 2.0
+# profil
+PROFILE_SIZE = 60
+PROFILE_THICKNESS = 2
 
-# === OPȚIUNI ===
-DOUBLE_LEAF = False       # doar pt swing
+# spațiu între foi
+GAP = 16

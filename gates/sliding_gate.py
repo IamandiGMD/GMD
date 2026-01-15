@@ -1,65 +1,60 @@
-import FreeCAD as App # type: ignore
-from profiles.rectangular import rectangular_tube
+import FreeCAD as App  # type: ignore
+from gates.base_gate import BaseGate
 
 
-class SlidingGate:
-    def __init__(self, cfg):
-        self.cfg = cfg
+class SlidingGate(BaseGate):
 
     def build(self):
-        W = self.cfg.GATE_WIDTH
-        H = self.cfg.GATE_HEIGHT
-        P = self.cfg.PROFILE_SIZE
-        T = self.cfg.PROFILE_THICKNESS
+        cfg = self.cfg
 
-        # STÂNGA (vertical)
-        rectangular_tube(
+        w = cfg.GATE_WIDTH
+        h = cfg.GATE_HEIGHT
+        p = cfg.PROFILE_SIZE
+
+        # =========================
+        # vertical stânga
+        # =========================
+        self.profile(
             name="Left",
-            width=P,
-            height=P,
-            thickness=T,
-            length=H,
+            length=h,
             placement=App.Placement(
                 App.Vector(0, 0, 0),
                 App.Rotation()
             )
         )
 
-        # DREAPTA (vertical)
-        rectangular_tube(
+        # =========================
+        # vertical dreapta
+        # =========================
+        self.profile(
             name="Right",
-            width=P,
-            height=P,
-            thickness=T,
-            length=H,
+            length=h,
             placement=App.Placement(
-                App.Vector(W - P, 0, 0),
+                App.Vector(w - p, 0, 0),
                 App.Rotation()
             )
         )
 
-        # JOS (orizontal)
-        rectangular_tube(
+        # =========================
+        # jos (ridicată cu grosimea profilului)
+        # =========================
+        self.profile(
             name="Bottom",
-            width=P,
-            height=P,
-            thickness=T,
-            length=W,
+            length=w,
             placement=App.Placement(
-                App.Vector(0, 0, P),
+                App.Vector(0, 0, p),
                 App.Rotation(App.Vector(0, 1, 0), 90)
             )
         )
 
-        # SUS (orizontal)
-        rectangular_tube(
+        # =========================
+        # sus (coborâtă cu grosimea profilului)
+        # =========================
+        self.profile(
             name="Top",
-            width=P,
-            height=P,
-            thickness=T,
-            length=W,
+            length=w,
             placement=App.Placement(
-                App.Vector(0, 0, H),
+                App.Vector(0, 0, h - p),
                 App.Rotation(App.Vector(0, 1, 0), 90)
             )
         )

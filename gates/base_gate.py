@@ -1,17 +1,24 @@
+import FreeCAD as App  # type: ignore
+from profiles.rectangular import rectangular_tube
+
+
 class BaseGate:
-    def __init__(self, cfg):
+    def __init__(self, doc, cfg):
+        self.doc = doc
         self.cfg = cfg
 
-    def build(self):
-        self.build_frame()
-        self.build_fill()
-        self.build_accessories()
-
-    def build_frame(self):
-        pass
-
-    def build_fill(self):
-        pass
-
-    def build_accessories(self):
-        pass
+    # =========================
+    # creare profil tubular
+    # =========================
+    def profile(self, *, name, length, placement):
+        """
+        Creează o țeavă rectangulară standard
+        """
+        return rectangular_tube(
+            name=name,
+            width=self.cfg.PROFILE_SIZE,
+            height=self.cfg.PROFILE_SIZE,
+            thickness=self.cfg.PROFILE_THICKNESS,
+            length=length,
+            placement=placement,
+        )
