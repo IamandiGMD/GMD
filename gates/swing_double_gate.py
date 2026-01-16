@@ -1,30 +1,53 @@
 import FreeCAD as App  # type: ignore
+
 from gates.base_gate import BaseGate
+from profiles.steel_profiles import get_profile
+
+
+# =====================================================
+# DISTRIBUIRE LINIARĂ – local (fără import extern)
+# =====================================================
+def distribute_linear(total_length: float, count: int, element_size: float):
+    if count <= 0:
+        return []
+
+    if count == 1:
+        return [(total_length - element_size) / 2.0]
+
+    free_space = total_length - count * element_size
+    if free_space < 0:
+        raise ValueError("Nu este suficient spațiu pentru distribuție")
+
+    step = free_space / (count + 1)
+    return [
+        step * (i + 1) + element_size * i
+        for i in range(count)
+    ]
 
 
 class SwingDoubleGate(BaseGate):
+    """
+    Poartă batantă dublă, fără stâlpi și balamale
+    Toți parametrii specifici acestui tip de poartă sunt definiți AICI
+    """
 
     # =========================
-    # PROFILE CADRU (DOAR AICI)
+    # PROFILE CADRU
     # =========================
-    FRAME_VERTICAL_OUTER = "60x60x2"
-    FRAME_VERTICAL_INNER = "60x60x2"
-    FRAME_HORIZONTAL_TOP = "60x60x2"
-    FRAME_HORIZONTAL_BOTTOM = "60x60x2"
+    FRAME_VERTICAL_EXT = "60x60x2"
+    FRAME_VERTICAL_INT = "60x40x2"
+    FRAME_TOP = "60x40x2"
+    FRAME_BOTTOM = "60x40x2"
 
     # =========================
     # PROFILE UMPLERE
     # =========================
-    FILL_VERTICAL = "60x60x2"
-    FILL_HORIZONTAL = "40x25x2"
+    FILL_VERTICAL = "40x20x2"
+    FILL_HORIZONTAL = "40x20x2"
 
     # =========================
     # BUILD
     # =========================
-    def __init__(self, doc, cfg):
-        super().__init__(doc)
-        self.cfg = cfg
-
     def build(self):
         cfg = self.cfg
 
@@ -32,92 +55,143 @@ class SwingDoubleGate(BaseGate):
         h = cfg.GATE_HEIGHT
         gap = cfg.GAP
 
-        leaf_w = (total_w - gap) / 2
+        leaf_w = (total_w - gap) / 2.0
 
-        self._build_leaf("Left", 0, leaf_w, h, cfg, outer_left=True)
-        self._build_leaf("Right", leaf_w + gap, leaf_w, h, cfg, outer_left=False)
+        self._build_leaf("Left", 0.0, leaf_w, h)
+        self._build_leaf("Right", leaf_w + gap, leaf_w, h)
 
-    def _build_leaf(self, name, x0, w, h, cfg, outer_left):
+    # =========================
+    # LEAF
+    # =========================
+    def _build_leaf(self, name: str, x0: float, w: float, h: float):
+        cfg = self.cfg
 
-        # -------------------------
-        # RAMĂ
-        # -------------------------
-        # vertical exterior
+        v_total = cfg.VERTICAL_COUNT
+        h_count = cfg.HORIZONTAL_COUNT
+
+        # =========================
+        # PROFILE
+        # =========================
+        frame_v_ext = get_profile(self.FRAME_VERTICAL_EXT)
+        frame_v_int = get_profile(self.FRAME_VERTICAL_INT)
+        frame_bottom = get_profile(self.FRAME_BOTTOM)
+        frame_top = get_profile(self.FRAME_TOP)
+
+        fill_v = get_profile(self.FILL_VERTICAL)
+        fill_h = get_profile(self.FILL_HORIZONTAL)
+
+        frame_left_w = frame_v_ext["width"]
+        frame_right_w = frame_v_int["width"]
+
+        bottom_h = frame_bottom["height"]
+        top_h = frame_top["height"]
+
+        # =========================
+        # GEOMETRIE CORECTĂ
+        # =========================
+        z_vertical = bottom_h
+        vertical_len = h - bottom_h - top_h
+
+        # =========================
+        # CADRU ORIZONTAL JOS
+        # =========================
         self.profile(
-            name=f"{name}_V_Outer",
-            profile=self.FRAME_VERTICAL_OUTER,
-            length=h,
-            placement=App.Placement(
-                App.Vector(x0 if outer_left else x0 + w - 60, 0, 0 - 60),
-                App.Rotation()
-            )
-        )
-
-        # vertical interior
-        self.profile(
-            name=f"{name}_V_Inner",
-            profile=self.FRAME_VERTICAL_INNER,
-            length=h,
-            placement=App.Placement(
-                App.Vector(x0 + w - 60 if outer_left else x0, 0, 0 - 60),
-                App.Rotation()
-            )
-        )
-
-        # jos
-        self.profile(
-            name=f"{name}_Bottom",
-            profile=self.FRAME_HORIZONTAL_BOTTOM,
-            length=w,
-            placement=App.Placement(
+            self.FRAME_BOTTOM,
+            w,
+            f"{name}_FrameBottom",
+            App.Placement(
                 App.Vector(x0, 0, 0),
                 App.Rotation(App.Vector(0, 1, 0), 90)
             )
         )
 
-        # sus
+        # =========================
+        # CADRU ORIZONTAL SUS
+        # =========================
         self.profile(
-            name=f"{name}_Top",
-            profile=self.FRAME_HORIZONTAL_TOP,
-            length=w,
-            placement=App.Placement(
-                App.Vector(x0, 0, h - 60),
+            self.FRAME_TOP,
+            w,
+            f"{name}_FrameTop",
+            App.Placement(
+                App.Vector(x0, 0, h - top_h),
                 App.Rotation(App.Vector(0, 1, 0), 90)
             )
         )
 
-        # -------------------------
+        # =========================
+        # CADRU VERTICAL
+        # =========================
+        self.profile(
+            self.FRAME_VERTICAL_EXT,
+            vertical_len,
+            f"{name}_FrameLeft",
+            App.Placement(
+                App.Vector(x0, 0, z_vertical),
+                App.Rotation()
+            )
+        )
+
+        self.profile(
+            self.FRAME_VERTICAL_INT,
+            vertical_len,
+            f"{name}_FrameRight",
+            App.Placement(
+                App.Vector(x0 + w - frame_right_w, 0, z_vertical),
+                App.Rotation()
+            )
+        )
+
+        # =========================
         # UMPLERE VERTICALĂ
-        # -------------------------
-        count = cfg.VERTICAL_COUNT
-        if count > 2:
-            step = w / (count - 1)
+        # =========================
+        fill_count = max(v_total - 2, 0)
+        if fill_count > 0:
+            inner_w = w - frame_left_w - frame_right_w
 
-            for i in range(1, count - 1):
-                x = x0 + i * step - 20
+            xs = distribute_linear(
+                inner_w,
+                fill_count,
+                fill_v["width"]
+            )
 
+            for i, x in enumerate(xs):
                 self.profile(
-                    name=f"{name}_Fill_V_{i}",
-                    profile=self.FILL_VERTICAL,
-                    length=h - 120,
-                    placement=App.Placement(
-                        App.Vector(x, 0, 0),
+                    self.FILL_VERTICAL,
+                    vertical_len,
+                    f"{name}_V{i + 1}",
+                    App.Placement(
+                        App.Vector(
+                            x0 + frame_left_w + x,
+                            0,
+                            z_vertical
+                        ),
                         App.Rotation()
                     )
                 )
 
-        # -------------------------
+        # =========================
         # UMPLERE ORIZONTALĂ
-        # -------------------------
-        if cfg.HORIZONTAL_COUNT > 0:
-            z = h / 2 - 15
+        # =========================
+        if h_count > 0:
+            inner_h = h - bottom_h - top_h
 
-            self.profile(
-                name=f"{name}_Fill_H",
-                profile=self.FILL_HORIZONTAL,
-                length=w,
-                placement=App.Placement(
-                    App.Vector(x0, 0, z),
-                    App.Rotation(App.Vector(0, 1, 0), 90)
-                )
+            zs = distribute_linear(
+                inner_h,
+                h_count,
+                fill_h["height"]
             )
+
+            for i, z in enumerate(zs):
+                self.profile(
+                    self.FILL_HORIZONTAL,
+                    w,
+                    f"{name}_H{i + 1}",
+                    App.Placement(
+                        App.Vector(
+                            x0,
+                            0,
+                            bottom_h + z
+                        ),
+                        App.Rotation(App.Vector(0, 1, 0), 90)
+                    )
+                )

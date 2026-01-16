@@ -1,35 +1,35 @@
 # profiles/rectangular.py
 
 import FreeCAD as App  # type: ignore
-import Part  # type: ignore
+import Part
 
 from profiles.steel_profiles import get_profile
 
 
 def rectangular_tube(
     doc,
-    profile: str,
+    profile_name: str,
     length: float,
     name: str,
     placement: App.Placement,
 ):
     """
-    Creează o țeavă rectangulară REALĂ (profil gol)
+    Creează o țeavă rectangulară pe baza unui profil din steel_profiles.py
     """
 
-    data = get_profile(profile)
+    p = get_profile(profile_name)
 
-    w = data["width"]
-    h = data["height"]
-    t = data["thickness"]
+    w = p["width"]
+    h = p["height"]
+    t = p["thickness"]
 
     if t * 2 >= min(w, h):
-        raise ValueError(f"Grosime invalidă pentru profil {profile}")
+        raise ValueError(f"Grosime invalidă pentru profil {profile_name}")
 
     # solid exterior
     outer = Part.makeBox(w, h, length)
 
-    # solid interior
+    # gol interior
     inner = Part.makeBox(
         w - 2 * t,
         h - 2 * t,
