@@ -3,22 +3,14 @@ from profiles.rectangular import rectangular_tube
 
 
 class BaseGate:
-    def __init__(self, doc, cfg):
+    def __init__(self, doc):
         self.doc = doc
-        self.cfg = cfg
 
-    # =========================
-    # creare profil tubular
-    # =========================
-    def profile(self, *, name, length, placement):
-        """
-        Creează o țeavă rectangulară standard
-        """
-        return rectangular_tube(
-            name=name,
-            width=self.cfg.PROFILE_SIZE,
-            height=self.cfg.PROFILE_SIZE,
-            thickness=self.cfg.PROFILE_THICKNESS,
+    def profile(self, name, profile, length, placement):
+        rectangular_tube(
+            self.doc,
+            profile=profile,
             length=length,
-            placement=placement,
+            name=name,
+            placement=placement
         )

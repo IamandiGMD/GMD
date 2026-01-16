@@ -1,27 +1,41 @@
-import FreeCAD as App # type: ignore
-import Part
+# profiles/rectangular.py
+
+import FreeCAD as App  # type: ignore
+import Part  # type: ignore
+
+from profiles.steel_profiles import get_profile
 
 
 def rectangular_tube(
-    *,
-    width,
-    height,
-    thickness,
-    length,
-    name,
-    placement
+    doc,
+    profile: str,
+    length: float,
+    name: str,
+    placement: App.Placement,
 ):
-    doc = App.ActiveDocument
-    if doc is None:
-        doc = App.newDocument("GMD")
+    """
+    Creează o țeavă rectangulară REALĂ (profil gol)
+    """
 
-    outer = Part.makeBox(width, height, length)
+    data = get_profile(profile)
+
+    w = data["width"]
+    h = data["height"]
+    t = data["thickness"]
+
+    if t * 2 >= min(w, h):
+        raise ValueError(f"Grosime invalidă pentru profil {profile}")
+
+    # solid exterior
+    outer = Part.makeBox(w, h, length)
+
+    # solid interior
     inner = Part.makeBox(
-        width - 2 * thickness,
-        height - 2 * thickness,
+        w - 2 * t,
+        h - 2 * t,
         length
     )
-    inner.translate(App.Vector(thickness, thickness, 0))
+    inner.translate(App.Vector(t, t, 0))
 
     shape = outer.cut(inner)
 
