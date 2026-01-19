@@ -1,49 +1,45 @@
 import FreeCAD as App  # type: ignore
+import sys
+
+BASE = r"C:\IamandiS\GMD"
+if BASE not in sys.path:
+    sys.path.insert(0, BASE)
 
 from gates.base_gate import BaseGate
 from profiles.steel_profiles import get_profile
 
 
-# =====================================================
-# DISTRIBUIRE LINIARĂ – local (fără import extern)
-# =====================================================
-def distribute_linear(total_length: float, count: int, element_size: float):
-    if count <= 0:
-        return []
-
-    if count == 1:
-        return [(total_length - element_size) / 2.0]
-
-    free_space = total_length - count * element_size
-    if free_space < 0:
-        raise ValueError("Nu este suficient spațiu pentru distribuție")
-
-    step = free_space / (count + 1)
-    return [
-        step * (i + 1) + element_size * i
-        for i in range(count)
-    ]
-
-
 class SwingDoubleGate(BaseGate):
     """
     Poartă batantă dublă, fără stâlpi și balamale
-    Toți parametrii specifici acestui tip de poartă sunt definiți AICI
     """
 
     # =========================
     # PROFILE CADRU
     # =========================
-    FRAME_VERTICAL_EXT = "60x60x2"
-    FRAME_VERTICAL_INT = "60x40x2"
-    FRAME_TOP = "60x40x2"
+    FRAME_VERTICAL_EXT = "60x60x2"   # exterior (lângă balamale)
+    FRAME_VERTICAL_INT = "60x40x2"   # interior (spre centru)
     FRAME_BOTTOM = "60x40x2"
+    FRAME_TOP = "60x40x2"
 
     # =========================
     # PROFILE UMPLERE
     # =========================
     FILL_VERTICAL = "40x20x2"
     FILL_HORIZONTAL = "40x20x2"
+
+    # =========================
+    # ROTIRI CADRU (grade)
+    # =========================
+    ROT_FRAME_VERT_EXT = 0.0
+    ROT_FRAME_VERT_INT = 90.0
+    ROT_FRAME_BOTTOM = 90.0
+    ROT_FRAME_TOP = 90.0
+
+    # =========================
+    # ROTIRE UMPLERE
+    # =========================
+    ROTATE_FILL = 0.0
 
     # =========================
     # BUILD
@@ -57,40 +53,94 @@ class SwingDoubleGate(BaseGate):
 
         leaf_w = (total_w - gap) / 2.0
 
-        self._build_leaf("Left", 0.0, leaf_w, h)
-        self._build_leaf("Right", leaf_w + gap, leaf_w, h)
+        self._build_leaf("Left", 0.0, leaf_w, h, hinge="left")
+        self._build_leaf("Right", leaf_w + gap, leaf_w, h, hinge="right")
 
     # =========================
     # LEAF
     # =========================
-    def _build_leaf(self, name: str, x0: float, w: float, h: float):
+    def _build_leaf(self, name, x0, w, h, hinge):
         cfg = self.cfg
 
         v_total = cfg.VERTICAL_COUNT
-        h_count = cfg.HORIZONTAL_COUNT
 
-        # =========================
-        # PROFILE
-        # =========================
-        frame_v_ext = get_profile(self.FRAME_VERTICAL_EXT)
-        frame_v_int = get_profile(self.FRAME_VERTICAL_INT)
-        frame_bottom = get_profile(self.FRAME_BOTTOM)
-        frame_top = get_profile(self.FRAME_TOP)
-
+        frame_ext = get_profile(self.FRAME_VERTICAL_EXT)
+        frame_int = get_profile(self.FRAME_VERTICAL_INT)
+        frame_h = get_profile(self.FRAME_BOTTOM)
         fill_v = get_profile(self.FILL_VERTICAL)
-        fill_h = get_profile(self.FILL_HORIZONTAL)
 
-        frame_left_w = frame_v_ext["width"]
-        frame_right_w = frame_v_int["width"]
+        # alegere profile stânga / dreapta (oglindire corectă)
+        if hinge == "left":
+            left_prof = self.FRAME_VERTICAL_EXT
+            right_prof = self.FRAME_VERTICAL_INT
+            left_w = frame_ext["width"]
+            right_w = frame_int["width"]
+            rot_left = self.ROT_FRAME_VERT_EXT
+            rot_right = self.ROT_FRAME_VERT_INT
+        else:
+            left_prof = self.FRAME_VERTICAL_INT
+            right_prof = self.FRAME_VERTICAL_EXT
+            left_w = frame_int["width"]
+            right_w = frame_ext["width"]
+            rot_left = self.ROT_FRAME_VERT_INT
+            rot_right = self.ROT_FRAME_VERT_EXT
 
-        bottom_h = frame_bottom["height"]
-        top_h = frame_top["height"]
+        bottom_h = frame_h["height"]
+        top_h = frame_h["height"]
 
-        # =========================
-        # GEOMETRIE CORECTĂ
-        # =========================
-        z_vertical = bottom_h
+        # zona verticalelor (între cadru jos și sus)
+        z0 = bottom_h
         vertical_len = h - bottom_h - top_h
+
+        # =========================
+        # CADRU VERTICAL
+        # =========================
+        self.profile(
+            left_prof,
+            vertical_len,
+            f"{name}_FrameLeft",
+            App.Placement(
+                App.Vector(x0, 0, z0),
+                App.Rotation(App.Vector(0, 0, 1), rot_left)
+            )
+        )
+
+        self.profile(
+            right_prof,
+            vertical_len,
+            f"{name}_FrameRight",
+            App.Placement(
+                App.Vector(x0 + w - right_w, 0, z0),
+                App.Rotation(App.Vector(0, 0, 1), rot_right)
+            )
+        )
+
+        # =========================
+        # UMPLERE VERTICALĂ (CENTRATĂ PERFECT)
+        # =========================
+        fill_count = max(v_total - 2, 0)
+
+        if fill_count > 0:
+            inner_w = w - left_w - right_w
+            bar_w = fill_v["width"]
+
+            spacing = (inner_w - fill_count * bar_w) / (fill_count + 1)
+
+            total_fill_width = fill_count * bar_w + (fill_count - 1) * spacing
+            center_offset = (inner_w - total_fill_width) / 2.0
+
+            for i in range(fill_count):
+                x = center_offset + i * (bar_w + spacing)
+
+                self.profile(
+                    self.FILL_VERTICAL,
+                    vertical_len,
+                    f"{name}_V{i}",
+                    App.Placement(
+                        App.Vector(x0 + left_w + x, 0, z0),
+                        App.Rotation(App.Vector(0, 0, 1), self.ROTATE_FILL)
+                    )
+                )
 
         # =========================
         # CADRU ORIZONTAL JOS
@@ -102,6 +152,7 @@ class SwingDoubleGate(BaseGate):
             App.Placement(
                 App.Vector(x0, 0, 0),
                 App.Rotation(App.Vector(0, 1, 0), 90)
+                * App.Rotation(App.Vector(0, 0, 1), self.ROT_FRAME_BOTTOM)
             )
         )
 
@@ -115,83 +166,6 @@ class SwingDoubleGate(BaseGate):
             App.Placement(
                 App.Vector(x0, 0, h - top_h),
                 App.Rotation(App.Vector(0, 1, 0), 90)
+                * App.Rotation(App.Vector(0, 0, 1), self.ROT_FRAME_TOP)
             )
         )
-
-        # =========================
-        # CADRU VERTICAL
-        # =========================
-        self.profile(
-            self.FRAME_VERTICAL_EXT,
-            vertical_len,
-            f"{name}_FrameLeft",
-            App.Placement(
-                App.Vector(x0, 0, z_vertical),
-                App.Rotation()
-            )
-        )
-
-        self.profile(
-            self.FRAME_VERTICAL_INT,
-            vertical_len,
-            f"{name}_FrameRight",
-            App.Placement(
-                App.Vector(x0 + w - frame_right_w, 0, z_vertical),
-                App.Rotation()
-            )
-        )
-
-        # =========================
-        # UMPLERE VERTICALĂ
-        # =========================
-        fill_count = max(v_total - 2, 0)
-        if fill_count > 0:
-            inner_w = w - frame_left_w - frame_right_w
-
-            xs = distribute_linear(
-                inner_w,
-                fill_count,
-                fill_v["width"]
-            )
-
-            for i, x in enumerate(xs):
-                self.profile(
-                    self.FILL_VERTICAL,
-                    vertical_len,
-                    f"{name}_V{i + 1}",
-                    App.Placement(
-                        App.Vector(
-                            x0 + frame_left_w + x,
-                            0,
-                            z_vertical
-                        ),
-                        App.Rotation()
-                    )
-                )
-
-        # =========================
-        # UMPLERE ORIZONTALĂ
-        # =========================
-        if h_count > 0:
-            inner_h = h - bottom_h - top_h
-
-            zs = distribute_linear(
-                inner_h,
-                h_count,
-                fill_h["height"]
-            )
-
-            for i, z in enumerate(zs):
-                self.profile(
-                    self.FILL_HORIZONTAL,
-                    w,
-                    f"{name}_H{i + 1}",
-                    App.Placement(
-                        App.Vector(
-                            x0,
-                            0,
-                            bottom_h + z
-                        ),
-                        App.Rotation(App.Vector(0, 1, 0), 90)
-                    )
-                )
