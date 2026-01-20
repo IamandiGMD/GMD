@@ -41,6 +41,11 @@ STEEL_PROFILES = {
         "height": 30.0,
         "thickness": 2.0,
     },
+        "40x60x2": {
+        "width": 40.0,
+        "height": 60.0,
+        "thickness": 2.0,
+    },
 }
 
 

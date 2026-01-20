@@ -9,163 +9,146 @@ from gates.base_gate import BaseGate
 from profiles.steel_profiles import get_profile
 
 
+def profile_with_front(profile_name: str, front_size: int) -> str:
+    w, h, t = profile_name.split("x")
+    w = int(w)
+    h = int(h)
+
+    if front_size == w:
+        return f"{w}x{h}x{t}"
+    elif front_size == h:
+        return f"{h}x{w}x{t}"
+    else:
+        raise ValueError(f"Front {front_size} invalid pentru {profile_name}")
+
+
 class SwingDoubleGate(BaseGate):
-    """
-    Poartă batantă dublă, fără stâlpi și balamale
-    """
 
     # =========================
     # PROFILE CADRU
     # =========================
-    FRAME_VERTICAL_EXT = "60x60x2"   # exterior (lângă balamale)
-    FRAME_VERTICAL_INT = "60x40x2"   # interior (spre centru)
+    FRAME_VERTICAL_EXT = "60x60x2"
+    FRAME_VERTICAL_EXT_FRONT = 60
+
+    FRAME_VERTICAL_INT = "40x60x2"
+    FRAME_VERTICAL_INT_FRONT = 40
+
     FRAME_BOTTOM = "60x40x2"
+    FRAME_BOTTOM_FRONT = 40
+
     FRAME_TOP = "60x40x2"
+    FRAME_TOP_FRONT = 40
 
     # =========================
-    # PROFILE UMPLERE
+    # UMPLERE
     # =========================
     FILL_VERTICAL = "40x20x2"
-    FILL_HORIZONTAL = "40x20x2"
+    FILL_VERTICAL_FRONT = 40
 
     # =========================
-    # ROTIRI CADRU (grade)
-    # =========================
-    ROT_FRAME_VERT_EXT = 0.0
-    ROT_FRAME_VERT_INT = 90.0
-    ROT_FRAME_BOTTOM = 90.0
-    ROT_FRAME_TOP = 90.0
+    def place_profile(self, profile, length, name, base, vertical=True):
+        rot = App.Rotation()
+        if not vertical:
+            rot = App.Rotation(App.Vector(0, 1, 0), 90)
 
-    # =========================
-    # ROTIRE UMPLERE
-    # =========================
-    ROTATE_FILL = 0.0
+        self.profile(profile, length, name, App.Placement(base, rot))
 
-    # =========================
-    # BUILD
     # =========================
     def build(self):
         cfg = self.cfg
-
-        total_w = cfg.GATE_WIDTH
+        w = cfg.GATE_WIDTH
         h = cfg.GATE_HEIGHT
         gap = cfg.GAP
 
-        leaf_w = (total_w - gap) / 2.0
+        leaf_w = (w - gap) / 2
 
-        self._build_leaf("Left", 0.0, leaf_w, h, hinge="left")
-        self._build_leaf("Right", leaf_w + gap, leaf_w, h, hinge="right")
+        self._leaf("Left", 0, leaf_w, h, "left")
+        self._leaf("Right", leaf_w + gap, leaf_w, h, "right")
 
     # =========================
-    # LEAF
-    # =========================
-    def _build_leaf(self, name, x0, w, h, hinge):
+    def _leaf(self, name, x0, w, h, hinge):
         cfg = self.cfg
+        v_count = cfg.VERTICAL_COUNT
 
-        v_total = cfg.VERTICAL_COUNT
+        # -------------------------------------------------
+        # POZIȚII CORECTE
+        # -------------------------------------------------
+        z_start = 0
+        vertical_len = h - self.FRAME_BOTTOM_FRONT - self.FRAME_TOP_FRONT
+        z_top = h - self.FRAME_TOP_FRONT
 
-        frame_ext = get_profile(self.FRAME_VERTICAL_EXT)
-        frame_int = get_profile(self.FRAME_VERTICAL_INT)
-        frame_h = get_profile(self.FRAME_BOTTOM)
-        fill_v = get_profile(self.FILL_VERTICAL)
+        # -------------------------------------------------
+        # PROFILE ORIENTATE
+        # -------------------------------------------------
+        bottom_prof = profile_with_front(self.FRAME_BOTTOM, self.FRAME_BOTTOM_FRONT)
+        top_prof = profile_with_front(self.FRAME_TOP, self.FRAME_TOP_FRONT)
 
-        # alegere profile stânga / dreapta (oglindire corectă)
         if hinge == "left":
-            left_prof = self.FRAME_VERTICAL_EXT
-            right_prof = self.FRAME_VERTICAL_INT
-            left_w = frame_ext["width"]
-            right_w = frame_int["width"]
-            rot_left = self.ROT_FRAME_VERT_EXT
-            rot_right = self.ROT_FRAME_VERT_INT
+            left_prof = profile_with_front(self.FRAME_VERTICAL_EXT, self.FRAME_VERTICAL_EXT_FRONT)
+            right_prof = profile_with_front(self.FRAME_VERTICAL_INT, self.FRAME_VERTICAL_INT_FRONT)
         else:
-            left_prof = self.FRAME_VERTICAL_INT
-            right_prof = self.FRAME_VERTICAL_EXT
-            left_w = frame_int["width"]
-            right_w = frame_ext["width"]
-            rot_left = self.ROT_FRAME_VERT_INT
-            rot_right = self.ROT_FRAME_VERT_EXT
+            left_prof = profile_with_front(self.FRAME_VERTICAL_INT, self.FRAME_VERTICAL_INT_FRONT)
+            right_prof = profile_with_front(self.FRAME_VERTICAL_EXT, self.FRAME_VERTICAL_EXT_FRONT)
 
-        bottom_h = frame_h["height"]
-        top_h = frame_h["height"]
+        left_w = get_profile(left_prof)["width"]
+        right_w = get_profile(right_prof)["width"]
 
-        # zona verticalelor (între cadru jos și sus)
-        z0 = bottom_h
-        vertical_len = h - bottom_h - top_h
-
-        # =========================
-        # CADRU VERTICAL
-        # =========================
-        self.profile(
+        # -------------------------------------------------
+        # VERTICALE CADRU
+        # -------------------------------------------------
+        self.place_profile(
             left_prof,
             vertical_len,
             f"{name}_FrameLeft",
-            App.Placement(
-                App.Vector(x0, 0, z0),
-                App.Rotation(App.Vector(0, 0, 1), rot_left)
-            )
+            App.Vector(x0, 0, z_start),
+            vertical=True
         )
 
-        self.profile(
+        self.place_profile(
             right_prof,
             vertical_len,
             f"{name}_FrameRight",
-            App.Placement(
-                App.Vector(x0 + w - right_w, 0, z0),
-                App.Rotation(App.Vector(0, 0, 1), rot_right)
-            )
+            App.Vector(x0 + w - right_w, 0, z_start),
+            vertical=True
         )
 
-        # =========================
-        # UMPLERE VERTICALĂ (CENTRATĂ PERFECT)
-        # =========================
-        fill_count = max(v_total - 2, 0)
+        # -------------------------------------------------
+        # UMPLERE
+        # -------------------------------------------------
+        fill_prof = profile_with_front(self.FILL_VERTICAL, self.FILL_VERTICAL_FRONT)
+        fill_w = get_profile(fill_prof)["width"]
+
+        inner_w = w - left_w - right_w
+        fill_count = max(v_count - 2, 0)
 
         if fill_count > 0:
-            inner_w = w - left_w - right_w
-            bar_w = fill_v["width"]
-
-            spacing = (inner_w - fill_count * bar_w) / (fill_count + 1)
-
-            total_fill_width = fill_count * bar_w + (fill_count - 1) * spacing
-            center_offset = (inner_w - total_fill_width) / 2.0
+            spacing = (inner_w - fill_count * fill_w) / (fill_count + 1)
 
             for i in range(fill_count):
-                x = center_offset + i * (bar_w + spacing)
-
-                self.profile(
-                    self.FILL_VERTICAL,
+                x = spacing * (i + 1) + fill_w * i
+                self.place_profile(
+                    fill_prof,
                     vertical_len,
                     f"{name}_V{i}",
-                    App.Placement(
-                        App.Vector(x0 + left_w + x, 0, z0),
-                        App.Rotation(App.Vector(0, 0, 1), self.ROTATE_FILL)
-                    )
+                    App.Vector(x0 + left_w + x, 0, z_start),
+                    vertical=True
                 )
 
-        # =========================
-        # CADRU ORIZONTAL JOS
-        # =========================
-        self.profile(
-            self.FRAME_BOTTOM,
+        # -------------------------------------------------
+        # ORIZONTALE
+        # -------------------------------------------------
+        self.place_profile(
+            bottom_prof,
             w,
             f"{name}_FrameBottom",
-            App.Placement(
-                App.Vector(x0, 0, 0),
-                App.Rotation(App.Vector(0, 1, 0), 90)
-                * App.Rotation(App.Vector(0, 0, 1), self.ROT_FRAME_BOTTOM)
-            )
+            App.Vector(x0, 0, 0),
+            vertical=False
         )
 
-        # =========================
-        # CADRU ORIZONTAL SUS
-        # =========================
-        self.profile(
-            self.FRAME_TOP,
+        self.place_profile(
+            top_prof,
             w,
             f"{name}_FrameTop",
-            App.Placement(
-                App.Vector(x0, 0, h - top_h),
-                App.Rotation(App.Vector(0, 1, 0), 90)
-                * App.Rotation(App.Vector(0, 0, 1), self.ROT_FRAME_TOP)
-            )
+            App.Vector(x0, 0, z_top),
+            vertical=False
         )
